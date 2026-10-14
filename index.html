@@ -10,9 +10,50 @@
 
     <style>
         body { margin: 0; padding: 0; font-family: 'Sarabun', sans-serif; }
-        #map { width: 100vw; height: 100vh; }
+        #map { width: 100vw; height: 100vh; display: none; } /* ซ่อนแผนที่ไว้ก่อนจนกว่าจะใส่รหัสผ่านถูกต้อง */
         
-        /* ตกแต่งแผงปุ่มควบคุมด้านบนขวา */
+        /* สไตล์หน้าจอกรอกรหัสผ่าน */
+        #login-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .login-box {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            width: 300px;
+        }
+        .login-box h2 { margin-bottom: 20px; color: #333; }
+        .login-box input {
+            width: 80%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .login-box button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .login-box button:hover { background-color: #218838; }
+        .error-msg { color: red; font-size: 14px; margin-top: 10px; display: none; }
+
+        /* ปุ่มควบคุมต่างๆ บนแผนที่ */
         .control-panel {
             background: white;
             padding: 10px;
@@ -23,36 +64,53 @@
             gap: 8px;
         }
         .btn {
-            border: none;
-            padding: 10px;
-            font-size: 14px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            color: white;
-            text-align: center;
+            border: none; padding: 10px; font-size: 14px; border-radius: 5px;
+            cursor: pointer; font-weight: bold; color: white; text-align: center;
         }
         .btn-save { background-color: #28a745; }
-        .btn-save:hover { background-color: #218838; }
         .btn-history { background-color: #ff9800; }
-        .btn-history:hover { background-color: #e68a00; }
         .btn-clear { background-color: #dc3545; }
-        .btn-clear:hover { background-color: #c82333; }
     </style>
 </head>
 <body>
+
+    <!-- หน้าจอกรอกรหัสผ่าน -->
+    <div id="login-screen">
+        <div class="login-box">
+            <h2>🔒 กรอกรหัสผ่านเข้าแผนที่</h2>
+            <input type="password" id="password-input" placeholder="ใส่รหัสผ่าน">
+            <br>
+            <button onclick="checkPassword()">เข้าสู่ระบบ</button>
+            <div id="error-msg" class="error-msg">รหัสผ่านไม่ถูกต้อง!</div>
+        </div>
+    </div>
+
     <div id="map"></div>
 
     <script>
+        // กำหนดรหัสผ่านตรงนี้ (เปลี่ยนเป็นเลขที่ต้องการได้เลยครับ)
+        var correctPassword = "1357";
+
+        function checkPassword() {
+            var inputVal = document.getElementById("password-input").value;
+            if (inputVal === correctPassword) {
+                // ถ้าใส่ถูก ซ่อนหน้าล็อกอิน และแสดงแผนที่
+                document.getElementById("login-screen").style.display = "none";
+                document.getElementById("map").style.display = "block";
+                map.invalidateSize(); // รีเฟรชขนาดแผนที่ให้พอดีจอ
+            } else {
+                // ถ้าใส่ผิด แสดงข้อความเตือน
+                document.getElementById("error-msg").style.display = "block";
+            }
+        }
+
+        // โค้ดแผนที่และ GPS (จะทำงานหลังจากเปิดแผนที่แล้ว)
         var map = L.map('map').setView([8.41, 98.27], 13);
 
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: 'Tiles &copy; Esri'
         }).addTo(map);
 
-        // ==========================================
-        // 1. โหลดไฟล์แปลงที่ดิน 10 แปลง
-        // ==========================================
         fetch('plots.geojson')
             .then(response => response.json())
             .then(data => {
@@ -75,30 +133,21 @@
             })
             .catch(error => console.error('Error loading GeoJSON:', error));
 
-        // ==========================================
-        // 2. ระบบ GPS และ เส้นทาง (Track)
-        // ==========================================
         var userMarker; 
-        var trackPath = []; // เส้นทางที่กำลังเดิน (สีฟ้า)
+        var trackPath = [];
         
-        // ดึงประวัติที่กำลังเดินค้างไว้ (ถ้าแอปดับ)
         var savedTrack = localStorage.getItem('myOfflineTrack');
         if (savedTrack) { trackPath = JSON.parse(savedTrack); }
 
         var currentPolyline = L.polyline(trackPath, {color: '#4285F4', weight: 5}).addTo(map);
-
-        // ดึง "ประวัติเก่าทั้งหมด" จากหน่วยความจำ
         var historyTracks = JSON.parse(localStorage.getItem('myHistoryTracks')) || [];
-        var historyLayer = L.layerGroup().addTo(map); // ชั้นข้อมูลสำหรับวาดเส้นประวัติ
+        var historyLayer = L.layerGroup().addTo(map); 
         var isHistoryVisible = false;
 
-        // สั่งเปิด GPS
         map.locate({setView: false, watch: true, enableHighAccuracy: true});
 
         map.on('locationfound', function(e) {
             var currentPos = e.latlng;
-            
-            // วาดหมุดสีน้ำเงิน
             if (!userMarker) {
                 var userIcon = L.divIcon({
                     className: 'user-marker',
@@ -109,16 +158,11 @@
             } else {
                 userMarker.setLatLng(currentPos);
             }
-
-            // บันทึกและวาดเส้นทางเดินปัจจุบัน
             trackPath.push(currentPos); 
             currentPolyline.setLatLngs(trackPath); 
             localStorage.setItem('myOfflineTrack', JSON.stringify(trackPath));
         });
 
-        // ==========================================
-        // 3. แผงควบคุม (ปุ่ม บันทึก / ดูประวัติ / ล้างข้อมูล)
-        // ==========================================
         var controlPanel = L.control({position: 'topright'});
         controlPanel.onAdd = function (map) {
             var div = L.DomUtil.create('div', 'control-panel leaflet-bar');
@@ -131,32 +175,21 @@
         };
         controlPanel.addTo(map);
 
-        // ฟังก์ชัน: บันทึกเส้นทางของวันนี้เก็บเข้าคลังประวัติ
         window.saveToHistory = function() {
-            if(trackPath.length < 2) {
-                alert("ยังไม่มีระยะทางมากพอที่จะบันทึกครับ");
-                return;
-            }
+            if(trackPath.length < 2) { alert("ยังไม่มีระยะทางมากพอที่จะบันทึกครับ"); return; }
             if(confirm("ต้องการบันทึกเส้นทางของรอบนี้ เก็บไว้ดูย้อนหลังใช่ไหม?")) {
-                // สร้างวันที่และเวลาปัจจุบัน
                 var now = new Date();
                 var dateStr = now.toLocaleDateString('th-TH') + " " + now.toLocaleTimeString('th-TH');
-                
-                // เก็บเข้าคลัง
                 historyTracks.push({ date: dateStr, path: trackPath });
                 localStorage.setItem('myHistoryTracks', JSON.stringify(historyTracks));
-                
-                // ล้างเส้นปัจจุบันออก เตรียมพร้อมเดินรอบใหม่
                 trackPath = [];
                 currentPolyline.setLatLngs([]);
                 localStorage.removeItem('myOfflineTrack');
-                
                 alert("บันทึกประวัติสำเร็จ!");
-                if(isHistoryVisible) { drawHistory(); } // อัปเดตเส้นประวัติ
+                if(isHistoryVisible) { drawHistory(); }
             }
         };
 
-        // ฟังก์ชัน: เปิด/ปิด การแสดงเส้นทางประวัติเก่า
         window.toggleHistory = function() {
             isHistoryVisible = !isHistoryVisible;
             if(isHistoryVisible) {
@@ -167,25 +200,20 @@
             }
         };
 
-        // ฟังก์ชันวาดเส้นประวัติเก่า (เส้นประสีส้ม)
         function drawHistory() {
             historyLayer.clearLayers();
             historyTracks.forEach(function(track) {
-                var poly = L.polyline(track.path, {
-                    color: '#ff9800', 
-                    weight: 4, 
-                    dashArray: '10, 10' // ทำให้เป็นเส้นประ
-                }).bindPopup("<b>ประวัติการเดินทาง</b><br>วันที่: " + track.date);
+                var poly = L.polyline(track.path, { color: '#ff9800', weight: 4, dashArray: '10, 10' })
+                            .bindPopup("<b>ประวัติการเดินทาง</b><br>วันที่: " + track.date);
                 historyLayer.addLayer(poly);
             });
         }
 
-        // ฟังก์ชัน: ล้างประวัติทั้งหมดทิ้ง
         window.clearAllData = function() {
-            if(confirm("คำเตือน: คุณต้องการลบประวัติย้อนหลังทั้งหมดทิ้งใช่หรือไม่? (ลบแล้วกู้คืนไม่ได้)")) {
+            if(confirm("คำเตือน: คุณต้องการลบประวัติย้อนหลังทั้งหมดทิ้งใช่หรือไม่?")) {
                 localStorage.removeItem('myOfflineTrack');
                 localStorage.removeItem('myHistoryTracks');
-                location.reload(); // รีเฟรชหน้าแอป
+                location.reload();
             }
         };
     </script>
