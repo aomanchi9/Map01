@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเช็คสถานะสวน 5,000 ไร่</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Sarabun', sans-serif; }
+        #map { width: 100vw; height: 100vh; }
+        
+        /* ตกแต่งแผงปุ่มควบคุมด้านบนขวา */
+        .control-panel {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .btn {
+            border: none;
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+            text-align: center;
+        }
+        .btn-save { background-color: #28a745; }
+        .btn-save:hover { background-color: #218838; }
+        .btn-history { background-color: #ff9800; }
+        .btn-history:hover { background-color: #e68a00; }
+        .btn-clear { background-color: #dc3545; }
+        .btn-clear:hover { background-color: #c82333; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <script>
+        var map = L.map('map').setView([8.41, 98.27], 13);
+
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri'
+        }).addTo(map);
+
+        // ==========================================
+        // 1. โหลดไฟล์แปลงที่ดิน 10 แปลง
+        // ==========================================
+        fetch('plots.geojson')
+            .then(response => response.json())
+            .then(data => {
+                var geojsonLayer = L.geoJSON(data, {
+                    style: function (feature) {
+                        var isCut = feature.properties.status === 'done';
+                        return {
+                            color: isCut ? "#00ff00" : "#ff0000",
+                            fillColor: isCut ? "#00ff00" : "#ff0000",
+                            weight: 3,
+                            fillOpacity: 0.3
+                        };
+                    },
+                    onEachFeature: function (feature, layer) {
+                        var statusText = feature.properties.status === 'done' ? "✅ ตัดแล้ว" : "❌ ยังไม่ตัด";
+                        layer.bindPopup("<b>" + feature.properties.name + "</b><br>สถานะ: " + statusText);
+                    }
+                }).addTo(map);
+                map.fitBounds(geojsonLayer.getBounds());
+            })
+            .catch(error => console.error('Error loading GeoJSON:', error));
+
+        // ==========================================
+        // 2. ระบบ GPS และ เส้นทาง (Track)
+        // ==========================================
+        var userMarker; 
+        var trackPath = []; // เส้นทางที่กำลังเดิน (สีฟ้า)
+        
+        // ดึงประวัติที่กำลังเดินค้างไว้ (ถ้าแอปดับ)
+        var savedTrack = localStorage.getItem('myOfflineTrack');
+        if (savedTrack) { trackPath = JSON.parse(savedTrack); }
+
+        var currentPolyline = L.polyline(trackPath, {color: '#4285F4', weight: 5}).addTo(map);
+
+        // ดึง "ประวัติเก่าทั้งหมด" จากหน่วยความจำ
+        var historyTracks = JSON.parse(localStorage.getItem('myHistoryTracks')) || [];
+        var historyLayer = L.layerGroup().addTo(map); // ชั้นข้อมูลสำหรับวาดเส้นประวัติ
+        var isHistoryVisible = false;
+
+        // สั่งเปิด GPS
+        map.locate({setView: false, watch: true, enableHighAccuracy: true});
+
+        map.on('locationfound', function(e) {
+            var currentPos = e.latlng;
+            
+            // วาดหมุดสีน้ำเงิน
+            if (!userMarker) {
+                var userIcon = L.divIcon({
+                    className: 'user-marker',
+                    html: '<div style="background-color: #4285F4; width: 15px; height: 15px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
+                    iconSize: [20, 20]
+                });
+                userMarker = L.marker(currentPos, {icon: userIcon}).addTo(map).bindPopup("📍 คุณอยู่ที่นี่");
+            } else {
+                userMarker.setLatLng(currentPos);
+            }
+
+            // บันทึกและวาดเส้นทางเดินปัจจุบัน
+            trackPath.push(currentPos); 
+            currentPolyline.setLatLngs(trackPath); 
+            localStorage.setItem('myOfflineTrack', JSON.stringify(trackPath));
+        });
+
+        // ==========================================
+        // 3. แผงควบคุม (ปุ่ม บันทึก / ดูประวัติ / ล้างข้อมูล)
+        // ==========================================
+        var controlPanel = L.control({position: 'topright'});
+        controlPanel.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'control-panel leaflet-bar');
+            div.innerHTML = `
+                <button class="btn btn-save" onclick="saveToHistory()">💾 บันทึกจบงาน</button>
+                <button class="btn btn-history" onclick="toggleHistory()">🕒 ดูประวัติย้อนหลัง</button>
+                <button class="btn btn-clear" onclick="clearAllData()">🗑 ล้างข้อมูลทั้งหมด</button>
+            `;
+            return div;
+        };
+        controlPanel.addTo(map);
+
+        // ฟังก์ชัน: บันทึกเส้นทางของวันนี้เก็บเข้าคลังประวัติ
+        window.saveToHistory = function() {
+            if(trackPath.length < 2) {
+                alert("ยังไม่มีระยะทางมากพอที่จะบันทึกครับ");
+                return;
+            }
+            if(confirm("ต้องการบันทึกเส้นทางของรอบนี้ เก็บไว้ดูย้อนหลังใช่ไหม?")) {
+                // สร้างวันที่และเวลาปัจจุบัน
+                var now = new Date();
+                var dateStr = now.toLocaleDateString('th-TH') + " " + now.toLocaleTimeString('th-TH');
+                
+                // เก็บเข้าคลัง
+                historyTracks.push({ date: dateStr, path: trackPath });
+                localStorage.setItem('myHistoryTracks', JSON.stringify(historyTracks));
+                
+                // ล้างเส้นปัจจุบันออก เตรียมพร้อมเดินรอบใหม่
+                trackPath = [];
+                currentPolyline.setLatLngs([]);
+                localStorage.removeItem('myOfflineTrack');
+                
+                alert("บันทึกประวัติสำเร็จ!");
+                if(isHistoryVisible) { drawHistory(); } // อัปเดตเส้นประวัติ
+            }
+        };
+
+        // ฟังก์ชัน: เปิด/ปิด การแสดงเส้นทางประวัติเก่า
+        window.toggleHistory = function() {
+            isHistoryVisible = !isHistoryVisible;
+            if(isHistoryVisible) {
+                drawHistory();
+                alert("แสดงประวัติเส้นทางเก่าทั้งหมด (เส้นประสีส้ม)");
+            } else {
+                historyLayer.clearLayers();
+            }
+        };
+
+        // ฟังก์ชันวาดเส้นประวัติเก่า (เส้นประสีส้ม)
+        function drawHistory() {
+            historyLayer.clearLayers();
+            historyTracks.forEach(function(track) {
+                var poly = L.polyline(track.path, {
+                    color: '#ff9800', 
+                    weight: 4, 
+                    dashArray: '10, 10' // ทำให้เป็นเส้นประ
+                }).bindPopup("<b>ประวัติการเดินทาง</b><br>วันที่: " + track.date);
+                historyLayer.addLayer(poly);
+            });
+        }
+
+        // ฟังก์ชัน: ล้างประวัติทั้งหมดทิ้ง
+        window.clearAllData = function() {
+            if(confirm("คำเตือน: คุณต้องการลบประวัติย้อนหลังทั้งหมดทิ้งใช่หรือไม่? (ลบแล้วกู้คืนไม่ได้)")) {
+                localStorage.removeItem('myOfflineTrack');
+                localStorage.removeItem('myHistoryTracks');
+                location.reload(); // รีเฟรชหน้าแอป
+            }
+        };
+    </script>
+</body>
+</html>
