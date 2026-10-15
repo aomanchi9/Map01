@@ -124,7 +124,6 @@
             var now = new Date();
             var dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
             var timeStr = now.toLocaleTimeString('th-TH');
-            
             var latLngText = window.currentCoordsText || "กำลังค้นหาพิกัด...";
             
             document.getElementById('info-content').innerHTML = `
@@ -206,7 +205,6 @@
                 }
             }
 
-            // อัปเดตข้อความพิกัดสำหรับแสดงผล
             window.currentCoordsText = `${filteredLatLng.lat.toFixed(6)}, ${filteredLatLng.lng.toFixed(6)}`;
 
             if (!userMarker) {
@@ -246,7 +244,7 @@
             window.addEventListener('deviceorientation', function(event) {
                 var alpha = event.alpha;
                 if (alpha !== null && document.getElementById('heading-cone')) {
-                    document.getElementById('heading-cone'].style.transform = 'rotate(' + alpha + 'deg)';
+                    document.getElementById('heading-cone').style.transform = 'rotate(' + alpha + 'deg)';
                 }
             }, true);
         }
