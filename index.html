@@ -22,7 +22,7 @@
             background: white; padding: 30px; border-radius: 10px;
             text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.5); width: 300px;
         }
-        .login-box h2 { margin-bottom: 20px; color: #333; }
+        .login-box h2 { margin-bottom: 20px; color: #333; font-size: 20px; }
         .login-box input {
             width: 80%; padding: 10px; font-size: 16px;
             border: 1px solid #ccc; border-radius: 5px; margin-bottom: 15px; text-align: center;
@@ -163,7 +163,10 @@
                         📋 แปลง: ตัดแล้ว <span style="color:#28a745;">${donePlots}</span>/${totalPlots} (${percent}%)
                     `;
                 })
-                .catch(error => console.error('Error loading GeoJSON:', error));
+                .catch(error => {
+                    console.error('Error loading GeoJSON:', error);
+                    document.getElementById('summary-content').innerHTML = `⚠️ โหลดไฟล์ plots.geojson ไม่สำเร็จ`;
+                });
         }
 
         loadPlots();
