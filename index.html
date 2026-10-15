@@ -124,7 +124,7 @@
         };
         summaryControl.addTo(map);
 
-        // ดึงข้อมูลแปลง
+        // ดึงข้อมูลแปลง (รองรับแปลงสีเหลืองด้วย)
         function loadPlots() {
             fetch('plots.geojson?v=' + new Date().getTime(), { cache: 'no-store' })
                 .then(response => response.json())
@@ -134,18 +134,26 @@
 
                     L.geoJSON(data, {
                         style: function (feature) {
-                            var isCut = feature.properties.status === 'done';
-                            if (isCut) donePlots++;
+                            var strokeColor = "#ff0000"; // ค่าเริ่มต้นสีแดง (ยังไม่ตัด)
+                            
+                            if (feature.properties && feature.properties.color === "yellow") {
+                                strokeColor = "#ffeb3b"; // สีเหลืองตามต้องการ
+                            } else if (feature.properties && feature.properties.status === 'done') {
+                                strokeColor = "#00ff00"; // สีเขียว (ตัดแล้ว)
+                                donePlots++;
+                            }
+
                             return {
-                                color: isCut ? "#00ff00" : "#ff0000",
-                                fillColor: isCut ? "#00ff00" : "#ff0000",
+                                color: strokeColor,
+                                fillColor: strokeColor,
                                 weight: 3,
                                 fillOpacity: 0.3
                             };
                         },
                         onEachFeature: function (feature, layer) {
-                            var statusText = feature.properties.status === 'done' ? "✅ ตัดแล้ว" : "❌ ยังไม่ตัด";
-                            layer.bindPopup("<b>" + feature.properties.name + "</b><br>สถานะ: " + statusText);
+                            var name = feature.properties.name || "แปลงที่ดิน";
+                            var statusText = (feature.properties && feature.properties.color === "yellow") ? "⭐ แปลงพิเศษ (สีเหลือง)" : ((feature.properties && feature.properties.status === 'done') ? "✅ ตัดแล้ว" : "❌ ยังไม่ตัด");
+                            layer.bindPopup("<b>" + name + "</b><br>สถานะ: " + statusText);
                         }
                     }).addTo(map);
 
@@ -160,7 +168,7 @@
         loadPlots();
 
         // ==========================================
-        // ระบบ GPS, บันทึกเส้นทาง และเข็มทิศ
+        // ระบบ GPS, บันทึกเส้นทาง และเข็มทิศ (โค้ดเดิมของคุณอ๋อม)
         // ==========================================
         var userMarker; 
         var userAccuracyCircle; 
@@ -210,7 +218,7 @@
                 userAccuracyCircle.setRadius(accuracy);
             }
 
-            // ถ้าร้านสถานะ "กำลังบันทึก" อยู่ ถึงจะวาดเส้นทาง
+            // ถ้าตั้งสถานะ "กำลังบันทึก" อยู่ ถึงจะวาดเส้นทาง
             if (isTracking) {
                 trackPath.push(currentPos); 
                 currentPolyline.setLatLngs(trackPath); 
