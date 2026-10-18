@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NK Map - แผนที่พังงา</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Sarabun', sans-serif; }
+        #map { width: 100vw; height: 100vh; display: none; }
+        
+        /* หน้าจอกรอกรหัสผ่าน */
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.85); display: flex;
+            justify-content: center; align-items: center; z-index: 9999;
+        }
+        .login-box {
+            background: white; padding: 30px; border-radius: 10px;
+            text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.5); width: 300px;
+        }
+        .login-box h2 { margin-bottom: 20px; color: #333; }
+        .login-box input {
+            width: 80%; padding: 10px; font-size: 16px;
+            border: 1px solid #ccc; border-radius: 5px; margin-bottom: 15px; text-align: center;
+        }
+        .login-box button {
+            background-color: #28a745; color: white; border: none;
+            padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; font-weight: bold;
+        }
+        .login-box button:hover { background-color: #218838; }
+        .error-msg { color: red; font-size: 14px; margin-top: 10px; display: none; }
+
+        /* ปรับแต่งหน้าต่าง Popup */
+        .leaflet-popup-content-wrapper {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+        }
+        .leaflet-popup-content {
+            font-size: 14px; color: #333; line-height: 1.6; margin: 12px 16px;
+        }
+
+        /* กล่องสรุปสถิติตัวเลขมุมบนซ้าย */
+        .summary-box {
+            background: white; padding: 8px 12px; border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-size: 13px; font-weight: bold; color: #333; line-height: 1.4;
+        }
+
+        /* แผงปุ่มควบคุมมุมบนขวา */
+        .control-panel {
+            background: white; padding: 8px; border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 6px;
+        }
+        .btn {
+            border: none; padding: 8px 12px; font-size: 13px; border-radius: 5px;
+            cursor: pointer; font-weight: bold; color: white; text-align: center; text-decoration: none; display: inline-block;
+        }
+        .btn-home { background-color: #607d8b; margin-bottom: 4px; }
+        .btn-start { background-color: #28a745; }
+        .btn-stop { background-color: #6c757d; }
+        .btn-locate { background-color: #007bff; }
+        .btn-save { background-color: #17a2b8; }
+        .btn-history { background-color: #ff9800; }
+        .btn-clear { background-color: #dc3545; }
+    </style>
+</head>
+<body>
+
+    <!-- หน้าจอกรอกรหัสผ่าน -->
+    <div id="login-screen">
+        <div class="login-box">
+            <h2>🔒 กรอกรหัสผ่านเข้าแผนที่</h2>
+            <input type="password" id="password-input" placeholder="ใส่รหัสผ่าน">
+            <br>
+            <button onclick="checkPassword()">เข้าสู่ระบบ</button>
+            <div id="error-msg" class="error-msg">รหัสผ่านไม่ถูกต้อง!</div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        var correctPassword = "1357";
+        var geojsonLayer = null;
+
+        // ตั้งค่าแผนที่เริ่มต้นสำหรับพังงา
+        var map = L.map('map').setView([8.41, 98.27], 15);
+
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri'
+        }).addTo(map);
+
+        function checkPassword() {
+            var inputVal = document.getElementById("password-input").value;
+            if (inputVal === correctPassword) {
+                document.getElementById("login-screen").style.display = "none";
+                document.getElementById("map").style.display = "block";
+                
+                // สั่งรีเฟรชขนาดให้โหลดแผนที่เต็มจอ
+                setTimeout(function() {
+                    map.invalidateSize();
+                }, 100);
+            } else {
+                document.getElementById("error-msg").style.display = "block";
+            }
+        }
+
+        // 1. กล่องสรุปผลแปลง (มุมบนซ้าย)
+        var summaryControl = L.control({position: 'topleft'});
+        summaryControl.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'summary-box');
+            div.id = 'summary-content';
+            div.innerHTML = `📊 กำลังโหลดข้อมูล...`;
+            return div;
+        };
+        summaryControl.addTo(map);
+
+        // ดึงข้อมูลแปลงจากไฟล์ phangnga.geojson 
+        function loadPlots() {
+            fetch('phangnga.geojson?v=' + new Date().getTime(), { cache: 'no-store' })
+                .then(response => response.json())
+                .then(data => {
+                    var totalPlots = data.features.length;
+                    var donePlots = 0;
+
+                    geojsonLayer = L.geoJSON(data, {
+                        style: function (feature) {
+                            var strokeColor = "#ff0000"; // ค่าเริ่มต้นสีแดง (ยังไม่ตัด)
+                            
+                            if (feature.properties && feature.properties.color === "yellow") {
+                                strokeColor = "#ffeb3b"; // ขอบเส้นสีเหลือง
+                            } else if (feature.properties && feature.properties.status === 'done') {
+                                strokeColor = "#00ff00"; // สีเขียว (ตัดแล้ว)
+                                donePlots++;
+                            }
+
+                            return {
+                                color: strokeColor,
+                                fillColor: strokeColor,
+                                weight: 3,
+                                fillOpacity: 0.3
+                            };
+                        },
+                        onEachFeature: function (feature, layer) {
+                            var name = (feature.properties && feature.properties.name) ? feature.properties.name : "แปลงที่ดิน";
+                            var area = (feature.properties && feature.properties.area) ? feature.properties.area : "-";
+                            var statusText = (feature.properties && feature.properties.color === "yellow") ? "⭐ แปลงพิเศษ (สีเหลือง)" : ((feature.properties && feature.properties.status === 'done') ? "✅ ตัดแล้ว" : "❌ ยังไม่ตัด");
+                            
+                            // แสดงรายละเอียดเฉพาะตอนคลิก
+                            var popupContent = `
+                                <div style="font-size: 14px;">
+                                    <b style="color: #007bff; font-size: 15px;">📍 พังงา</b><br>
+                                    <hr style="margin: 5px 0;">
+                                    <b>📄 ชื่อแปลง:</b> ${name}<br>
+                                    <b>📏 เนื้อที่:</b> ${area}<br>
+                                    <b>📌 สถานะ:</b> ${statusText}
+                                </div>
+                            `;
+                            layer.bindPopup(popupContent);
+                        }
+                    }).addTo(map);
+
+                    // *** ยกเลิกคำสั่งบังคับซูมอัตโนมัติ (fitBounds) ไปแล้ว ***
+                    // เพื่อป้องกันแผนที่เด้งไปซูมทั้งโลก
+
+                    var percent = totalPlots > 0 ? Math.round((donePlots / totalPlots) * 100) : 0;
+                    document.getElementById('summary-content').innerHTML = `
+                        📋 แปลง: ตัดแล้ว <span style="color:#28a745;">${donePlots}</span>/${totalPlots} (${percent}%)
+                    `;
+                })
+                .catch(error => {
+                    console.error('Error loading GeoJSON:', error);
+                    document.getElementById('summary-content').innerHTML = `⚠️ โหลดไฟล์แปลงที่ดินไม่สำเร็จ`;
+                });
+        }
+
+        loadPlots();
+
+        // ==========================================
+        // ระบบ GPS, บันทึกเส้นทาง และเข็มทิศ
+        // ==========================================
+        var userMarker; 
+        var userAccuracyCircle; 
+        var lastLatLng = null;
+        var trackPath = [];
+        var isTracking = false; 
+
+        var savedTrack = localStorage.getItem('myOfflineTrack');
+        if (savedTrack) { trackPath = JSON.parse(savedTrack); }
+
+        var currentPolyline = L.polyline(trackPath, {color: '#4285F4', weight: 5}).addTo(map);
+        var historyTracks = JSON.parse(localStorage.getItem('myHistoryTracks')) || [];
+        var historyLayer = L.layerGroup().addTo(map); 
+        var isHistoryVisible = false;
+
+        map.locate({setView: false, watch: true, enableHighAccuracy: true});
+
+        map.on('locationfound', function(e) {
+            var currentPos = e.latlng;
+            var accuracy = e.accuracy;
+            lastLatLng = currentPos; 
+
+            if (!userMarker) {
+                var googleMapsIcon = L.divIcon({
+                    className: 'google-maps-marker',
+                    html: `
+                        <div style="position: relative; width: 40px; height: 40px; transform: translate(-20px, -20px);">
+                            <div id="heading-cone" style="position: absolute; top: -10px; left: 10px; width: 20px; height: 25px; background: linear-gradient(to top, rgba(66,133,244,0), rgba(66,133,244,0.6)); clip-path: polygon(50% 0%, 0% 100%, 100% 100%); transform-origin: bottom center; transition: transform 0.1s ease;"></div>
+                            <div style="position: absolute; top: 10px; left: 10px; width: 20px; height: 20px; background-color: #4285F4; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.4);"></div>
+                        </div>
+                    `,
+                    iconSize: [40, 40]
+                });
+                
+                userMarker = L.marker(currentPos, {icon: googleMapsIcon}).addTo(map).bindPopup("📍 คุณอยู่ที่นี่");
+                
+                userAccuracyCircle = L.circle(currentPos, {
+                    radius: accuracy,
+                    color: '#4285F4',
+                    weight: 1,
+                    fillColor: '#4285F4',
+                    fillOpacity: 0.15
+                }).addTo(map);
+            } else {
+                userMarker.setLatLng(currentPos);
+                userAccuracyCircle.setLatLng(currentPos);
+                userAccuracyCircle.setRadius(accuracy);
+            }
+
+            if (isTracking) {
+                trackPath.push(currentPos); 
+                currentPolyline.setLatLngs(trackPath); 
+                localStorage.setItem('myOfflineTrack', JSON.stringify(trackPath));
+            }
+        });
+
+        if (window.DeviceOrientationEvent) {
+            window.addEventListener('deviceorientation', function(event) {
+                var alpha = event.alpha;
+                if (alpha !== null && document.getElementById('heading-cone')) {
+                    document.getElementById('heading-cone').style.transform = 'rotate(' + alpha + 'deg)';
+                }
+            }, true);
+        }
+
+        // ==========================================
+        // แผงปุ่มควบคุม (มุมบนขวา)
+        // ==========================================
+        var controlPanel = L.control({position: 'topright'});
+        controlPanel.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'control-panel leaflet-bar');
+            div.innerHTML = `
+                <a href="index.html" class="btn btn-home">🏠 กลับหน้าหลัก</a>
+                <button id="btn-toggle-track" class="btn btn-start" onclick="toggleTracking()">▶️ เริ่มบันทึก</button>
+                <button class="btn btn-locate" onclick="panToUser()">🎯 ตำแหน่งฉัน</button>
+                <button class="btn btn-save" onclick="saveToHistory()">💾 บันทึกจบงาน</button>
+                <button class="btn btn-history" onclick="toggleHistory()">🕒 ดูประวัติ</button>
+                <button class="btn btn-clear" onclick="clearAllData()">🗑 ล้างข้อมูล</button>
+            `;
+            return div;
+        };
+        controlPanel.addTo(map);
+
+        window.toggleTracking = function() {
+            isTracking = !isTracking;
+            var btn = document.getElementById('btn-toggle-track');
+            if (isTracking) {
+                btn.innerHTML = "⏹️ หยุดบันทึก";
+                btn.className = "btn btn-stop";
+                alert("เริ่มบันทึกเส้นทางแล้วครับ");
+            } else {
+                btn.innerHTML = "▶️ เริ่มบันทึก";
+                btn.className = "btn btn-start";
+                alert("หยุดบันทึกเส้นทางชั่วคราว");
+            }
+        };
+
+        window.panToUser = function() {
+            if (lastLatLng) {
+                map.setView(lastLatLng, 17);
+            } else {
+                alert("กำลังค้นหาตำแหน่ง GPS ของคุณ...");
+            }
+        };
+
+        window.saveToHistory = function() {
+            if(trackPath.length < 2) { alert("ยังไม่มีเส้นทางที่บันทึกครับ"); return; }
+            if(confirm("ต้องการบันทึกเส้นทางรอบนี้เก็บไว้ดูย้อนหลังใช่ไหม?")) {
+                var now = new Date();
+                var dateStr = now.toLocaleDateString('th-TH') + " " + now.toLocaleTimeString('th-TH');
+                historyTracks.push({ date: dateStr, path: trackPath });
+                localStorage.setItem('myHistoryTracks', JSON.stringify(historyTracks));
+                trackPath = [];
+                currentPolyline.setLatLngs([]);
+                localStorage.removeItem('myOfflineTrack');
+                isTracking = false;
+                document.getElementById('btn-toggle-track').innerHTML = "▶️ เริ่มบันทึก";
+                document.getElementById('btn-toggle-track').className = "btn btn-start";
+                alert("บันทึกประวัติสำเร็จ!");
+                if(isHistoryVisible) { drawHistory(); }
+            }
+        };
+
+        window.toggleHistory = function() {
+            isHistoryVisible = !isHistoryVisible;
+            if(isHistoryVisible) {
+                drawHistory();
+                alert("แสดงประวัติเส้นทางเก่าทั้งหมด (เส้นประสีส้ม)");
+            } else {
+                historyLayer.clearLayers();
+            }
+        };
+
+        function drawHistory() {
+            historyLayer.clearLayers();
+            historyTracks.forEach(function(track) {
+                var poly = L.polyline(track.path, { color: '#ff9800', weight: 4, dashArray: '10, 10' })
+                            .bindPopup("<b>ประวัติการเดินทาง</b><br>วันที่: " + track.date);
+                historyLayer.addLayer(poly);
+            });
+        }
+
+        window.clearAllData = function() {
+            if(confirm("คำเตือน: คุณต้องการลบประวัติย้อนหลังทั้งหมดทิ้งใช่หรือไม่?")) {
+                localStorage.removeItem('myOfflineTrack');
+                localStorage.removeItem('myHistoryTracks');
+                location.reload();
+            }
+        };
+    </script>
+</body>
+</html>
