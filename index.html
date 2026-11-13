@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NK Map - Smart Intelligence System</title>
+    <title>NK Map - Test Mode</title>
     
     <!-- Google Fonts: Noto Sans Thai -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -12,15 +11,36 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
+        /* ธีมสี Dark Mode (ค่าเริ่มต้น) */
         :root {
             --bg-color: #060a12;
-            --card-bg: rgba(13, 20, 33, 0.85);
+            --card-bg: rgba(13, 20, 33, 0.9);
             --card-border: rgba(16, 185, 129, 0.3);
             --accent-green: #10b981;
             --accent-cyan: #06b6d4;
             --accent-amber: #f59e0b;
-            --text-main: #f3f4f6;
+            --text-main: #ffffff;
             --text-muted: #9ca3af;
+            --box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+            --stat-bg: rgba(6, 10, 18, 0.6);
+            --sub-card-bg: rgba(6, 10, 18, 0.5);
+            --grid-line: linear-gradient(rgba(16, 185, 129, 0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(16, 185, 129, 0.02) 1px, transparent 1px);
+        }
+
+        /* ธีมสี Light Mode (เมื่อกดสลับโหมดสว่าง) */
+        [data-theme="light"] {
+            --bg-color: #f1f5f9;
+            --card-bg: #ffffff;
+            --card-border: rgba(16, 185, 129, 0.3);
+            --accent-green: #059669;
+            --accent-cyan: #0284c7;
+            --accent-amber: #d97706;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            --stat-bg: #f8fafc;
+            --sub-card-bg: #f8fafc;
+            --grid-line: linear-gradient(rgba(148, 163, 184, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -33,16 +53,41 @@
             display: flex;
             flex-direction: column;
             overflow-x: hidden;
-            /* เอฟเฟกต์ตารางกริดและแสงนีออนสไตล์ GIS */
             background-image: 
-                linear-gradient(rgba(16, 185, 129, 0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(16, 185, 129, 0.03) 1px, transparent 1px),
-                radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.07) 0%, transparent 70%);
+                var(--grid-line),
+                radial-gradient(circle at 50% 30%, rgba(6, 182, 212, 0.06) 0%, transparent 70%);
             background-size: 40px 40px, 40px 40px, 100% 100%;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* ปุ่มสลับโหมด Dark / Light ตามแบบที่เทสแล้วขึ้นแน่นอน */
+        .theme-toggle-btn {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: #131421;
+            border: 2px solid #10b981;
+            color: #ffffff;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 15px;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+            z-index: 9999;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle-btn:hover {
+            transform: scale(1.1);
+            border-color: var(--accent-cyan);
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 1000px;
             margin: 0 auto;
             padding: 40px 20px;
             flex: 1;
@@ -51,234 +96,230 @@
             justify-content: center;
         }
 
-        /* Header ดีไซน์ใหม่สุดล้ำ */
+        /* Header */
         .header {
             text-align: center;
-            margin-bottom: 40px;
-            animation: fadeInDown 0.8s ease-out;
-            position: relative;
-        }
-
-        /* เอฟเฟกต์เรดาร์สแกนจำลองสุดเท่ตรงหัวข้อ */
-        .radar-hero-container {
-            width: 90px; height: 90px;
-            margin: 0 auto 20px auto;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            background: rgba(16, 185, 129, 0.05);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            box-shadow: 0 0 25px rgba(16, 185, 129, 0.2);
-        }
-
-        .radar-circle {
-            width: 70px; height: 70px;
-            border-radius: 50%;
-            border: 1px dashed rgba(6, 182, 212, 0.5);
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .radar-sweep {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            border-radius: 50%;
-            background: conic-gradient(from 0deg at 50% 50%, rgba(16, 185, 129, 0.4) 0deg, transparent 60deg, transparent 360deg);
-            animation: radarRotate 3s linear infinite;
-        }
-
-        .radar-icon-center {
-            color: var(--accent-green);
-            font-size: 22px;
-            z-index: 2;
-            filter: drop-shadow(0 0 8px var(--accent-green));
-        }
-
-        @keyframes radarRotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        .badge {
-            display: inline-block;
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--accent-green);
-            padding: 6px 18px;
-            border-radius: 50px;
-            font-size: 13px;
-            font-weight: 500;
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            margin-bottom: 12px;
-            box-shadow: 0 0 15px rgba(16, 185, 129, 0.15);
-            letter-spacing: 1px;
-        }
-
-        .header h1 {
-            font-size: 42px;
-            font-weight: 700;
-            margin-bottom: 12px;
-            letter-spacing: 1.5px;
-            background: linear-gradient(135deg, #ffffff 20%, var(--accent-cyan) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 30px rgba(6, 182, 212, 0.3);
-        }
-
-        .header p {
-            font-size: 15px;
-            color: var(--text-muted);
-            max-width: 600px;
-            margin: 0 auto;
-            line-height: 1.6;
-        }
-
-        /* Province Cards Grid */
-        .province-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 25px;
             margin-bottom: 25px;
         }
 
-        @media (max-width: 768px) {
-            .province-grid { grid-template-columns: 1fr; }
-            .header h1 { font-size: 30px; }
+        .brand-radar-icon {
+            font-size: 28px;
+            color: var(--accent-cyan);
+            margin-bottom: 8px;
+            display: inline-block;
+            animation: radarPulse 2s infinite ease-in-out;
+            filter: drop-shadow(0 0 10px var(--accent-cyan));
         }
 
-        .province-card {
+        @keyframes radarPulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.15); opacity: 1; text-shadow: 0 0 15px var(--accent-cyan); }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+
+        .header h1 {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            background: linear-gradient(135deg, var(--text-main) 20%, var(--accent-cyan) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-sub-title {
+            font-size: 13px;
+            font-weight: 400;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+
+        /* ปุ่มสลับแท็บจังหวัด */
+        .tab-switcher {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .tab-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            padding: 10px 25px;
+            border-radius: 50px;
+            font-family: 'Noto Sans Thai', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .tab-btn:hover {
+            border-color: var(--accent-cyan);
+            color: var(--text-main);
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--accent-green), #047857);
+            color: #ffffff;
+            border-color: transparent;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+        }
+
+        /* การ์ดแสดงผลสรุปด่วน */
+        .summary-panel {
             background: var(--card-bg);
             backdrop-filter: blur(12px);
             border: 1px solid var(--card-border);
             border-radius: 20px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(16, 185, 129, 0.03);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
+            padding: 30px;
+            box-shadow: var(--box-shadow);
+            display: none;
+            animation: fadeIn 0.4s ease-out;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
-        .province-card:hover {
-            border-color: var(--accent-cyan);
-            transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(6, 182, 212, 0.2), inset 0 0 20px rgba(6, 182, 212, 0.08);
+        .summary-panel.active {
+            display: block;
         }
 
-        .province-header {
+        .panel-header {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .province-icon {
-            width: 60px; height: 60px;
-            background: rgba(16, 185, 129, 0.12);
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 26px;
-            color: var(--accent-green);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-        }
-
-        .province-title h2 {
-            font-size: 22px;
-            font-weight: 600;
-            margin-bottom: 2px;
-        }
-
-        .province-title span {
-            font-size: 13px;
-            color: var(--text-muted);
-            font-family: monospace;
-        }
-
-        .province-desc {
-            font-size: 14px;
-            color: var(--text-muted);
-            line-height: 1.6;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 15px;
             margin-bottom: 20px;
-            flex: 1;
         }
 
-        /* Action Area */
-        .action-area {
+        .panel-title h2 {
+            font-size: 22px;
+            color: var(--text-main);
             display: flex;
-            flex-direction: column;
+            align-items: center;
             gap: 10px;
         }
 
-        .btn-main {
-            background: linear-gradient(135deg, var(--accent-green), #047857);
-            color: white;
+        /* ข้อมูลสถิติย่อย */
+        .quick-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .quick-stats { grid-template-columns: 1fr; }
+            .tab-switcher { flex-direction: column; align-items: center; }
+            .tab-btn { width: 100%; justify-content: center; }
+        }
+
+        .q-stat-box {
+            background: var(--stat-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .q-stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+
+        .q-stat-val {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        /* รายชื่อแปลงย่อย */
+        .sub-plot-card {
+            background: var(--sub-card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .sub-plot-info h4 {
+            font-size: 15px;
+            color: var(--text-main);
+            margin-bottom: 2px;
+        }
+
+        .sub-plot-info p {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .sub-plot-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* ปุ่มกด */
+        .panel-actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn-action {
+            flex: 1;
+            background: linear-gradient(135deg, var(--accent-cyan), #0284c7);
+            color: #ffffff;
             text-decoration: none;
             padding: 12px 20px;
             border-radius: 12px;
             font-weight: 600;
             text-align: center;
-            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            box-shadow: 0 4px 15px rgba(6, 182, 212, 0.3);
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .btn-main:hover {
-            filter: brightness(1.15);
-            transform: scale(1.01);
-            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
-        }
-
-        /* Sub Menu Container (สำหรับกระบี่) */
-        .sub-menu-container {
-            background: rgba(6, 10, 18, 0.7);
-            border: 1px dashed rgba(245, 158, 11, 0.4);
-            border-radius: 12px;
-            padding: 12px;
-        }
-
-        .sub-menu-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--accent-amber);
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .sub-buttons {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
             gap: 8px;
         }
 
-        .btn-sub {
-            background: rgba(245, 158, 11, 0.1);
-            color: #fcd34d;
-            border: 1px solid rgba(245, 158, 11, 0.3);
-            text-decoration: none;
-            padding: 8px 10px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            text-align: center;
-            transition: all 0.2s ease;
+        .btn-action:hover {
+            filter: brightness(1.1);
+            transform: translateY(-2px);
         }
 
-        .btn-sub:hover {
-            background: var(--accent-amber);
-            color: #060a12;
-            box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+        .btn-weather {
+            background: linear-gradient(135deg, var(--accent-amber), #d97706);
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+
+        .btn-map {
+            background: linear-gradient(135deg, var(--accent-green), #047857);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+
+        .btn-disabled {
+            background: rgba(55, 65, 81, 0.3);
+            color: var(--text-muted);
+            border: 1px dashed var(--card-border);
+            cursor: not-allowed;
+            box-shadow: none;
+            padding: 8px 12px;
+            font-size: 13px;
         }
 
         /* Footer */
@@ -287,87 +328,212 @@
             padding: 20px;
             font-size: 13px;
             color: var(--text-muted);
-            border-top: 1px solid rgba(55, 65, 81, 0.4);
-            margin-top: 20px;
+            border-top: 1px solid var(--card-border);
+            margin-top: 30px;
             font-family: monospace;
         }
 
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-20px); }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
 <body>
 
+    <!-- ปุ่มสลับโหมด Dark / Light -->
+    <button class="theme-toggle-btn" onclick="toggleTheme()" id="theme-btn" title="สลับโหมดสีสว่าง/มืด">
+        <i class="fa-solid fa-moon" id="theme-icon"></i>
+    </button>
+
     <div class="container">
-        <!-- Header พร้อมเรดาร์สแกนสุดล้ำ -->
+        <!-- Header -->
         <div class="header">
-            <div class="radar-hero-container">
-                <div class="radar-circle">
-                    <div class="radar-sweep"></div>
-                    <i class="fa-solid fa-satellite-dish radar-icon-center"></i>
-                </div>
+            <div class="brand-radar-icon">
+                <i class="fa-solid fa-satellite-dish"></i>
             </div>
-            <span class="badge"><i class="fa-solid fa-earth-asia"></i> GIS & SMART PALM INTELLIGENCE</span>
             <h1>NK Map</h1>
-            <p>NAPAS K. Smart Map Intelligence </p>
+            <div class="header-sub-title">NAPAS K. Smart Map Intelligence</div>
         </div>
 
-        <!-- Province Cards Grid -->
-        <div class="province-grid">
+        <!-- ปุ่มกดสลับแท็บ -->
+        <div class="tab-switcher">
+            <button class="tab-btn active" onclick="switchTab('phangnga')">
+                <i class="fa-solid fa-map-location-dot"></i> จังหวัดพังงา
+            </button>
+            <button class="tab-btn" onclick="switchTab('krabi')">
+                <i class="fa-solid fa-layer-group"></i> จังหวัดกระบี่
+            </button>
+        </div>
+
+        <!-- 1. แผงข้อมูลสรุป: พังงา -->
+        <div id="panel-phangnga" class="summary-panel active">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <h2><i class="fa-solid fa-tree" style="color: var(--accent-green);"></i> พังงา</h2>
+                </div>
+            </div>
             
-            <!-- การ์ดจังหวัดพังงา -->
-            <div class="province-card">
-                <div class="province-header">
-                    <div class="province-icon"><i class="fa-solid fa-map-location-dot"></i></div>
-                    <div class="province-title">
-                        <h2>พังงา</h2>
-                        <span>ZONE : พังงา </span>
-                    </div>
+            <div class="quick-stats">
+                <div class="q-stat-box">
+                    <div class="q-stat-label">จำนวนแปลงทั้งหมด</div>
+                    <div class="q-stat-val">11 แปลง</div>
                 </div>
-                <div class="province-desc">
-                    NK Map พังงา 
+                <div class="q-stat-box">
+                    <div class="q-stat-label">แปลงพิเศษ (นส3ก 95)</div>
+                    <div class="q-stat-val" style="color: var(--accent-amber);">1 แปลง (สีเหลือง)</div>
                 </div>
-                <div class="action-area">
-                    <a href="phangnga.html" class="btn-main">
-                        <i class="fa-solid fa-satellite"></i> เปิดแผนที่แปลงพังงา
+                <div class="q-stat-box">
+                    <div class="q-stat-label">สถานะระบบพิกัด</div>
+                    <div class="q-stat-val" style="color: var(--accent-green);">พร้อมใช้งาน GPS</div>
+                </div>
+            </div>
+
+            <div class="panel-actions">
+                <a href="phangnga.html" class="btn-action btn-map">
+                    <i class="fa-solid fa-map"></i> แผนที่
+                </a>
+                <a href="https://www.accuweather.com/th/th/thai-mueang/319929/weather-forecast/319929?type=locality" target="_blank" class="btn-action btn-weather">
+                    <i class="fa-solid fa-cloud-sun-rain"></i> อากาศ
+                </a>
+            </div>
+        </div>
+
+        <!-- 2. แผงข้อมูลสรุป: กระบี่ -->
+        <div id="panel-krabi" class="summary-panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <h2><i class="fa-solid fa-seedling" style="color: var(--accent-amber);"></i> กระบี่</h2>
+                </div>
+            </div>
+            
+            <div class="quick-stats" style="margin-bottom: 20px;">
+                <div class="q-stat-box">
+                    <div class="q-stat-label">จำนวนแปลงทั้งหมด</div>
+                    <div class="q-stat-val">15 แปลง</div>
+                </div>
+                <div class="q-stat-box">
+                    <div class="q-stat-label">สถานะโซนย่อย</div>
+                    <div class="q-stat-val" style="color: var(--accent-cyan);">อ่าวลึก พร้อมใช้งาน</div>
+                </div>
+                <div class="q-stat-box">
+                    <div class="q-stat-label">สถานะระบบพิกัด</div>
+                    <div class="q-stat-val" style="color: var(--accent-green);">พร้อมใช้งาน GPS</div>
+                </div>
+            </div>
+
+            <div style="font-size: 13px; color: var(--accent-amber); margin-bottom: 10px; font-weight: 600;">
+                <i class="fa-solid fa-crosshairs"></i> รายชื่อโซนแปลงย่อยและพยากรณ์อากาศ :
+            </div>
+
+            <!-- แปลงอ่าวลึก / แปลง A -->
+            <div class="sub-plot-card">
+                <div class="sub-plot-info">
+                    <h4>โซนอ่าวลึก (แปลง A)</h4>
+                    <p>15 โฉนด พร้อมระบบแผนที่และพิกัด GPS</p>
+                </div>
+                <div class="sub-plot-actions">
+                    <a href="krabi_a.html" class="btn-action btn-map">
+                        <i class="fa-solid fa-map"></i> แผนที่
+                    </a>
+                    <a href="https://www.accuweather.com/th/th/ao-luek/480310/weather-forecast/480310?type=locality" target="_blank" class="btn-action btn-weather">
+                        <i class="fa-solid fa-cloud-sun-rain"></i> อากาศ
                     </a>
                 </div>
             </div>
 
-            <!-- การ์ดจังหวัดกระบี่ -->
-            <div class="province-card">
-                <div class="province-header">
-                    <div class="province-icon" style="color: var(--accent-amber); background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3);"><i class="fa-solid fa-layer-group"></i></div>
-                    <div class="province-title">
-                        <h2>กระบี่</h2>
-                        <span>ZONE : กระบี่</span>
-                    </div>
+            <!-- แปลง B -->
+            <div class="sub-plot-card">
+                <div class="sub-plot-info">
+                    <h4>โซน (แปลง B)</h4>
+                    <p style="color: var(--accent-amber);">สถานะ : อยู่ระหว่างเตรียมข้อมูล</p>
                 </div>
-                <div class="province-desc">
-                    NK Map กระบี่
+                <div class="sub-plot-actions">
+                    <span class="btn-action btn-disabled"><i class="fa-solid fa-lock"></i> ปิดใช้งาน</span>
+                    <a href="https://www.accuweather.com/th/th/ao-luek/480310/weather-forecast/480310?type=locality" target="_blank" class="btn-action btn-weather">
+                        <i class="fa-solid fa-cloud-sun-rain"></i> อากาศ
+                    </a>
                 </div>
-                <div class="action-area">
-                    <div class="sub-menu-container">
-                        <div class="sub-menu-title"><i class="fa-solid fa-crosshairs"></i> เลือกโซนแปลงย่อย:</div>
-                        <div class="sub-buttons">
-                            <a href="krabi_a.html" class="btn-sub"><i class="fa-solid fa-chevron-right" style="font-size:10px;"></i> แปลงใหญ่ A</a>
-                            <a href="#" class="btn-sub" style="opacity: 0.5; cursor: not-allowed;">แปลงใหญ่ B</a>
-                            <a href="#" class="btn-sub" style="opacity: 0.5; cursor: not-allowed;">แปลงใหญ่ C</a>
-                            <a href="#" class="btn-sub" style="opacity: 0.5; cursor: not-allowed;">แปลงใหญ่ D</a>
-                        </div>
-                    </div>
+            </div>
+
+            <!-- แปลง C -->
+            <div class="sub-plot-card">
+                <div class="sub-plot-info">
+                    <h4>โซน (แปลง C)</h4>
+                    <p style="color: var(--accent-amber);">สถานะ: อยู่ระหว่างเตรียมข้อมูล</p>
+                </div>
+                <div class="sub-plot-actions">
+                    <span class="btn-action btn-disabled"><i class="fa-solid fa-lock"></i> ปิดใช้งาน</span>
+                    <a href="https://www.accuweather.com/th/th/ao-luek/480310/weather-forecast/480310?type=locality" target="_blank" class="btn-action btn-weather">
+                        <i class="fa-solid fa-cloud-sun-rain"></i> อากาศ
+                    </a>
+                </div>
+            </div>
+
+            <!-- แปลง D -->
+            <div class="sub-plot-card">
+                <div class="sub-plot-info">
+                    <h4>โซน (แปลง D)</h4>
+                    <p style="color: var(--accent-amber);">สถานะ: อยู่ระหว่างเตรียมข้อมูล</p>
+                </div>
+                <div class="sub-plot-actions">
+                    <span class="btn-action btn-disabled"><i class="fa-solid fa-lock"></i> ปิดใช้งาน</span>
+                    <a href="https://www.accuweather.com/th/th/ao-luek/480310/weather-forecast/480310?type=locality" target="_blank" class="btn-action btn-weather">
+                        <i class="fa-solid fa-cloud-sun-rain"></i> อากาศ
+                    </a>
                 </div>
             </div>
 
         </div>
+
     </div>
 
     <!-- Footer -->
     <div class="footer">
         © 2026 NK Map - Smart Intelligence System. All rights reserved.
     </div>
+
+    <!-- Script สำหรับสลับแท็บและสลับโหมด Dark/Light -->
+    <script>
+        function switchTab(province) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.summary-panel').forEach(panel => panel.classList.remove('active'));
+
+            if (province === 'phangnga') {
+                document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+                document.getElementById('panel-phangnga').classList.add('active');
+            } else if (province === 'krabi') {
+                document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+                document.getElementById('panel-krabi').classList.add('active');
+            }
+        }
+
+        function toggleTheme() {
+            const htmlTag = document.documentElement;
+            const themeIcon = document.getElementById('theme-icon');
+
+            if (htmlTag.getAttribute('data-theme') === 'light') {
+                htmlTag.removeAttribute('data-theme');
+                themeIcon.className = 'fa-solid fa-moon';
+                localStorage.setItem('nk_theme', 'dark');
+            } else {
+                htmlTag.setAttribute('data-theme', 'light');
+                themeIcon.className = 'fa-solid fa-sun';
+                localStorage.setItem('nk_theme', 'light');
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('nk_theme');
+            const themeIcon = document.getElementById('theme-icon');
+            if (savedTheme === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+                themeIcon.className = 'fa-solid fa-sun';
+            } else {
+                themeIcon.className = 'fa-solid fa-moon';
+            }
+        });
+    </script>
 
 </body>
 </html>
